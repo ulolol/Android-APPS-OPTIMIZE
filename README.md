@@ -106,7 +106,7 @@ The script will:
 ### For Non-Rooted Devices (Shizuku Method)
 
 Ensure Shizuku is running,   
-Install install [termux-shizuku-tools]([https://github.com/AlexeiCrystal/termux-shizuku-tools])  
+Install & setup [termux-shizuku-tools](https://github.com/AlexeiCrystal/termux-shizuku-tools) 
 then:
 ```bash
 ./optimize-apps-shizuku-tui.py
