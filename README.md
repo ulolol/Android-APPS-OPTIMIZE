@@ -216,7 +216,8 @@ Log files contain timestamps, debug information, and error messages useful for t
 
 ## Important Notes
 
-### Reboot Required ⚠️
+### Reboot Required ⚠️  
+#### Not required anymore (shizuku fixed it. Root never needed it)
 After optimization, **you must reboot your device**. The optimization process can interfere with Android's Scoped Storage permissions, which are restored after reboot. All optimizations are permanent and persist across reboots.
 
 ### Performance Tips
