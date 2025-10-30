@@ -1,0 +1,4 @@
+pexpect>=4.9.0
+rich>=13.7.0
+questionary>=1.10.0
+textual>=0.60.0
