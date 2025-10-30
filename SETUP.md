@@ -144,7 +144,8 @@ The user interface and workflow are **identical** to the root-based version. The
 
 ## 🔄 Post-Optimization Steps
 
-### ‼️ IMPORTANT: REBOOT REQUIRED ‼️
+### ‼️ IMPORTANT: REBOOT REQUIRED ‼️  
+#### Not required anymore (shizuku fixed it, root never needed it)
 
 After optimizing apps, **you MUST reboot your device**.
 
