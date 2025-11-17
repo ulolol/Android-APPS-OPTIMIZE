@@ -218,6 +218,9 @@ class AppSelectionScreen(Screen):
         self.row_to_app: Dict[int, str] = {}  # Map row index to package name
         self.row_keys: Dict[int, str] = {}  # Map row index to DataTable RowKey
         self.column_keys = []  # Store ColumnKey objects: [checkbox_col, name_col, status_col]
+        self.sort_column: Optional[str] = None  # 'package_name' or 'status'
+        self.sort_descending = False
+        self.sortable_column_keys: Dict[str, str] = {}
 
     def compose(self) -> ComposeResult:
         """Compose the screen layout."""
@@ -239,6 +242,12 @@ class AppSelectionScreen(Screen):
         # Store column keys returned by add_columns
         self.column_keys = table.add_columns("", "Package Name", "Status")
         logging.debug(f"Column keys: {self.column_keys}")
+        if len(self.column_keys) >= 3:
+            self.sortable_column_keys = {
+                self.column_keys[1]: "package_name",
+                self.column_keys[2]: "status",
+            }
+            logging.debug(f"Sortable column map: {self.sortable_column_keys}")
         table.cursor_type = "row"  # Enable row cursor
         self.update_apps_display()
         logging.debug(f"AppSelectionScreen mounted. Total apps: {len(self.apps)}")
@@ -261,36 +270,100 @@ class AppSelectionScreen(Screen):
                 or self.search_query in app.optimization_status.get_status_name()
             ]
 
+    def on_data_table_header_selected(self, event: DataTable.HeaderSelected) -> None:
+        """Handle clicks on headers to toggle sorting."""
+        column = self.sortable_column_keys.get(event.column_key)
+        if not column:
+            return
+        logging.debug(
+            f"Header clicked: column_key={event.column_key}, column={column}"
+        )
+        self._toggle_sort_column(column)
+        self.update_apps_display()
+
+    def _toggle_sort_column(self, column: str) -> None:
+        """Toggle sorting state for the requested column."""
+        if self.sort_column == column:
+            self.sort_descending = not self.sort_descending
+        else:
+            self.sort_column = column
+            self.sort_descending = False
+        logging.debug(
+            f"Sorting by {self.sort_column} (descending={self.sort_descending})"
+        )
+
+    def _get_sorted_apps(self) -> List[AppInfo]:
+        """Return apps ordered according to the current sort state."""
+        if not self.sort_column:
+            return self.filtered_apps
+        sort_key = self._get_sort_key()
+        if sort_key is None:
+            return self.filtered_apps
+        return sorted(
+            self.filtered_apps,
+            key=sort_key,
+            reverse=self.sort_descending,
+        )
+
+    def _get_sort_key(self):
+        """Return the key function for the active sort column."""
+        if self.sort_column == "package_name":
+            return lambda app: app.package_name.lower()
+        if self.sort_column == "status":
+            return lambda app: app.optimization_status.get_status_name().lower()
+        return None
+
     def update_apps_display(self) -> None:
-        """Update the apps list display grouped by status."""
+        """Update the apps list display grouped by status unless sorting is active."""
         table = self.query_one("#apps_table", DataTable)
         table.clear()
         self.row_to_app = {}
         self.row_keys = {}
-
-        # Group apps by optimization status
-        grouped: Dict[str, List[AppInfo]] = {}
-        for app in self.filtered_apps:
-            group = app.optimization_status.get_group_name()
-            if group not in grouped:
-                grouped[group] = []
-            grouped[group].append(app)
-
-        # Sort groups and apps within groups
-        group_order = ["Fully Optimized", "Partially Optimized", "Minimally Optimized", "Unknown Status"]
 
         if not self.filtered_apps:
             table.add_row("[dim]No apps found[/dim]", "", "")
             logging.debug("No filtered apps to display")
             return
 
-        # Add grouped content
+        if self.sort_column:
+            apps_to_show = self._get_sorted_apps()
+            row_idx = 0
+            for app in apps_to_show:
+                checkbox = "☑" if app.package_name in self.selected_packages else "☐"
+                status = app.optimization_status.get_status_name()
+                color = app.optimization_status.get_color()
+
+                row_key = table.add_row(
+                    checkbox,
+                    app.package_name,
+                    f"[{color}]{status}[/]",
+                )
+                self.row_to_app[row_idx] = app.package_name
+                self.row_keys[row_idx] = row_key
+                row_idx += 1
+
+            logging.debug(
+                f"Sorted view rows: {row_idx}, row_to_app entries {len(self.row_to_app)}, row_keys entries {len(self.row_keys)}"
+            )
+            return
+
+        grouped: Dict[str, List[AppInfo]] = {}
+        for app in self.filtered_apps:
+            group = app.optimization_status.get_group_name()
+            grouped.setdefault(group, []).append(app)
+
+        group_order = [
+            "Fully Optimized",
+            "Partially Optimized",
+            "Minimally Optimized",
+            "Unknown Status",
+        ]
+
         row_idx = 0
         for group in group_order:
             if group not in grouped:
                 continue
 
-            # Add group header (not selectable)
             row_key = table.add_row(f"[bold cyan]{group}[/bold cyan]", "", "")
             self.row_keys[row_idx] = row_key
             logging.debug(f"Added header row {row_idx} for group: {group}")
@@ -305,15 +378,18 @@ class AppSelectionScreen(Screen):
                 row_key = table.add_row(
                     checkbox,
                     app.package_name,
-                    f"[{color}]{status}[/]"
+                    f"[{color}]{status}[/]",
                 )
-                # Store mapping from row index to package name and row key
                 self.row_to_app[row_idx] = app.package_name
                 self.row_keys[row_idx] = row_key
-                logging.debug(f"Mapped row {row_idx} -> {app.package_name} (key: {row_key})")
+                logging.debug(
+                    f"Mapped row {row_idx} -> {app.package_name} (key: {row_key})"
+                )
                 row_idx += 1
 
-        logging.debug(f"Total rows added: {row_idx}, row_to_app mapping has {len(self.row_to_app)} entries, row_keys has {len(self.row_keys)} entries")
+        logging.debug(
+            f"Total rows added: {row_idx}, row_to_app mapping has {len(self.row_to_app)} entries, row_keys has {len(self.row_keys)} entries"
+        )
 
     def action_select_all(self) -> None:
         """Select all apps in filtered list."""
